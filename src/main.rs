@@ -18,12 +18,13 @@ struct character {
     characterDown: [FRect; 3],
     characterRight: [FRect; 3],
     characterLeft: [FRect; 3],
+    hitBox: FRect,
     stats: stats,
     swordAttack: swordAttack
 }
 
 impl character {
-    fn new(x: f32, y: f32, direction: String, characterUp: [FRect; 3], characterDown: [FRect; 3], characterRight: [FRect; 3], characterLeft: [FRect; 3], health: f32) -> character {character{x, y, direction, walkingPhase: 0, characterUp, characterDown,characterRight, characterLeft, stats: stats::new(health), swordAttack: swordAttack::new("up".to_string())}}
+    fn new(x: f32, y: f32, direction: String, characterUp: [FRect; 3], characterDown: [FRect; 3], characterRight: [FRect; 3], characterLeft: [FRect; 3], health: f32) -> character {character{x, y, direction, walkingPhase: 0, characterUp, characterDown,characterRight, characterLeft, hitBox: FRect{x, y, w: 70.0, h: 112.0}, stats: stats::new(health), swordAttack: swordAttack::new("up".to_string())}}
     fn walkPhaseChange(&mut self, lastPhaseChange: &Instant) -> bool {
         if lastPhaseChange.elapsed().as_millis() >= 200 {
             self.walkingPhase += 1;
@@ -35,8 +36,9 @@ impl character {
 
         false
     }
-    fn render(&self, texture: &Texture, renderer: &mut WindowCanvas) {
-        let rectRender = FRect::new(self.x, self.y, 70.0, 112.0);
+    fn render(&mut self, texture: &Texture, renderer: &mut WindowCanvas) {
+        self.hitBox.x = self.x;
+        self.hitBox.y = self.y;
 
         let rectSet = match self.direction.as_str() {
             "up" => self.characterUp,
@@ -46,7 +48,7 @@ impl character {
             _ => self.characterDown
         };
 
-        renderer.copy(texture, rectSet[self.walkingPhase], rectRender).unwrap();
+        renderer.copy(texture, rectSet[self.walkingPhase], self.hitBox).unwrap();
     }
     fn updatePosition(&mut self, x: f32, y: f32, window: &Window) {
         self.x += x;
@@ -64,6 +66,36 @@ impl character {
         if self.y + 105.0 > 0.0 + window.size_in_pixels().1 as f32 {
             self.y = window.size_in_pixels().1 as f32 - 105.0;
         }
+    }
+}
+
+struct wolf {
+    x: f32,
+    y: f32,
+    direction: String,
+    walkingPhase: usize,
+    wolfUp: [FRect; 3],
+    wolfDown: [FRect; 3],
+    wolfRight: [FRect; 3],
+    wolfLeft: [FRect; 3],
+    hitBox: FRect,
+}
+
+impl wolf {
+    fn new(x: f32, y: f32, direction: String, wolfUp: [FRect; 3], wolfDown: [FRect; 3], wolfRight: [FRect; 3], wolfLeft: [FRect; 3]) -> wolf {wolf{x, y, direction,  walkingPhase: 0, wolfUp, wolfDown, wolfLeft, wolfRight, hitBox: FRect{x, y, w: 0.0, h: 0.0}}}
+    fn render(&mut self, texture: &Texture, renderer: &mut WindowCanvas) {
+        self.hitBox.x = self.x;
+        self.hitBox.y = self.y;
+
+        let rectSet = match self.direction.as_str() {
+            "up" => self.wolfUp,
+            "down" => self.wolfDown,
+            "right" => self.wolfRight,
+            "left" => self.wolfLeft,
+            _ => self.wolfDown
+        };
+
+        renderer.copy(texture, rectSet[self.walkingPhase], self.hitBox).unwrap();
     }
 }
 
@@ -137,6 +169,7 @@ struct swordAttack {
     swingDown: [FRect; 6],
     swingLeft: [FRect; 6],
     swingRight: [FRect; 6],
+    hitBox: FRect,
     swingPhase: usize,
     swingPhaseFloat: f32,
     direction: String,
@@ -149,6 +182,7 @@ impl swordAttack{
         swingDown: [FRect::new(1.0, 16.0, 3.0, 3.0), FRect::new(5.0, 16.0, 13.0, 11.0), FRect::new(19.0, 16.0, 25.0, 13.0), FRect::new(47.0, 16.0, 31.0, 11.0), FRect::new(79.0, 16.0, 33.0, 11.0), FRect::new(113.0, 16.0, 32.0, 14.0)],
         swingLeft: [FRect::new(1.0, 30.0, 3.0, 2.0), FRect::new(5.0, 30.0, 12.0, 9.0), FRect::new(17.0, 30.0, 12.0, 15.0), FRect::new(30.0, 30.0, 11.0, 20.0), FRect::new(42.0, 30.0, 10.0, 21.0), FRect::new(53.0, 30.0, 14.0, 20.0)],
         swingRight: [FRect::new(1.0, 53.0, 3.0, 2.0), FRect::new(5.0, 53.0, 12.0, 8.0), FRect::new(17.0, 53.0, 12.0, 15.0), FRect::new(30.0, 53.0, 11.0, 20.0), FRect::new(42.0, 53.0, 10.0, 21.0), FRect::new(53.0, 53.0, 14.0, 20.0)],
+        hitBox: FRect{x: 0.0, y: 0.0, w: 0.0, h: 0.0},
         swingPhase: 6,
         swingPhaseFloat: 6.0,
         direction,
@@ -218,13 +252,21 @@ impl swordAttack{
             _ => 0.0,
         };
 
+        self.hitBox = match self.direction.as_str() {
+            "up" => FRect { x: renderX, y: renderY, w: self.swingUp[self.swingPhase].w * 7.0, h: self.swingUp[self.swingPhase].h * 7.0 },
+            "down" => FRect { x: renderX, y: renderY, w: self.swingDown[self.swingPhase].w * 7.0, h: self.swingDown[self.swingPhase].h * 7.0 },
+            "left" => FRect { x: renderX, y: renderY, w: self.swingLeft[self.swingPhase].w * 7.0, h: self.swingLeft[self.swingPhase].h * 7.0 },
+            "right" => FRect { x: renderX, y: renderY, w: self.swingRight[self.swingPhase].w * 7.0, h: self.swingRight[self.swingPhase].h * 7.0 },
+            _ => FRect::new(0.0, 0.0, 0.0, 0.0),
+        };
+
         match self.direction.as_str() {
-            "up" => renderer.copy(texture, self.swingUp[self.swingPhase], FRect { x: renderX, y: renderY, w: self.swingUp[self.swingPhase].w * 7.0, h: self.swingUp[self.swingPhase].h * 7.0 }).unwrap(),
-            "down" => renderer.copy(texture, self.swingDown[self.swingPhase], FRect { x: renderX, y: renderY, w: self.swingDown[self.swingPhase].w * 7.0, h: self.swingDown[self.swingPhase].h * 7.0 }).unwrap(),
-            "left" => renderer.copy(texture, self.swingLeft[self.swingPhase], FRect { x: renderX, y: renderY, w: self.swingLeft[self.swingPhase].w * 7.0, h: self.swingLeft[self.swingPhase].h * 7.0 }).unwrap(),
-            "right" => renderer.copy(texture, self.swingRight[self.swingPhase], FRect { x: renderX, y: renderY, w: self.swingRight[self.swingPhase].w * 7.0, h: self.swingRight[self.swingPhase].h * 7.0 }).unwrap(),
+            "up" => renderer.copy(texture, self.swingUp[self.swingPhase], self.hitBox).unwrap(),
+            "down" => renderer.copy(texture, self.swingDown[self.swingPhase], self.hitBox).unwrap(),
+            "left" => renderer.copy(texture, self.swingLeft[self.swingPhase], self.hitBox).unwrap(),
+            "right" => renderer.copy(texture, self.swingRight[self.swingPhase], self.hitBox).unwrap(),
             _ => return
-        }
+        };
 
         self.swingPhaseFloat += 0.5;
         self.swingPhase = self.swingPhaseFloat.floor() as usize;
@@ -322,6 +364,33 @@ fn gameLoop(renderer: &mut WindowCanvas, mut mainCharacter: character, window: W
         let extraTime = 16 - elapsed;
         delay(extraTime as u32);
     }
+}
+
+fn hitboxDetector(hitbox1: FRect, hitbox2: FRect) -> bool {
+    let top1 = hitbox1.y;
+    let bottom1 = hitbox1.y + hitbox1.h;
+    let left1 = hitbox1.x;
+    let right1 = hitbox1.x + hitbox1.w;
+
+    let top2 = hitbox2.y;
+    let bottom2 = hitbox2.y + hitbox2.h;
+    let left2 = hitbox2.x;
+    let right2 = hitbox2.x + hitbox2.w;
+
+    if bottom1 > top2{
+        return false
+    }
+    if top1 < bottom2{
+        return false
+    }
+    if left1 > right2{
+        return false
+    }
+    if right1 < left2{
+        return false
+    }
+
+    true
 }
 
 fn input(mainCharacter: &mut character, mut lastPhaseChange: Instant, running: &mut bool, meshBox: &mut meshBox, backgroundTexture: &Texture, window: &Window) -> Instant {
