@@ -79,13 +79,14 @@ struct wolf {
     wolfRight: [FRect; 3],
     wolfLeft: [FRect; 3],
     hitBox: FRect,
+    playerFound: bool
 }
 
 impl wolf {
-    fn new(x: f32, y: f32, direction: String, wolfUp: [FRect; 3], wolfDown: [FRect; 3], wolfRight: [FRect; 3], wolfLeft: [FRect; 3]) -> wolf {wolf{x, y, direction,  walkingPhase: 0, wolfUp, wolfDown, wolfLeft, wolfRight, hitBox: FRect{x, y, w: 0.0, h: 0.0}}}
-    fn render(&mut self, texture: &Texture, renderer: &mut WindowCanvas) {
-        self.hitBox.x = self.x;
-        self.hitBox.y = self.y;
+    fn new(x: f32, y: f32, direction: String, wolfUp: [FRect; 3], wolfDown: [FRect; 3], wolfRight: [FRect; 3], wolfLeft: [FRect; 3]) -> wolf {wolf{x, y, direction,  walkingPhase: 0, wolfUp, wolfDown, wolfLeft, wolfRight, hitBox: FRect{x, y, w: 0.0, h: 0.0}, playerFound: true}}
+    fn render(&mut self, texture: &Texture, backgroundTexture: &Texture, renderer: &mut WindowCanvas, meshBox: meshBox) {
+        self.hitBox.x = self.x * 6.0 - meshBox.x;
+        self.hitBox.y = self.y * 6.0 - meshBox.y;
 
         let rectSet = match self.direction.as_str() {
             "up" => self.wolfUp,
@@ -96,6 +97,32 @@ impl wolf {
         };
 
         renderer.copy(texture, rectSet[self.walkingPhase], self.hitBox).unwrap();
+    }
+    fn findPlayer (&mut self, mainCharacter: &character, window: &Window) {
+        //if !self.playerFound{
+        //    if
+        //}
+        if self.playerFound {
+
+          //  self.updatePosition();
+        }
+    }
+    fn updatePosition(&mut self, x: f32, y: f32, window: &Window, backgroundTexture: &Texture) {
+        self.x += x;
+        self.y += y;
+
+        if self.x < 0.0 {
+            self.x = 0.0;
+        }
+        if self.y < 0.0 {
+            self.y = 0.0;
+        }
+        if self.x + self.hitBox.w > backgroundTexture.width() as f32 {
+            self.x = backgroundTexture.width() as f32 - self.hitBox.w;
+        }
+        if self.y + self.hitBox.h > backgroundTexture.height() as f32 {
+            self.y = backgroundTexture.height() as f32 - self.hitBox.h;
+        }
     }
 }
 
@@ -337,29 +364,36 @@ fn main() {
 }
 
 fn gameLoop(renderer: &mut WindowCanvas, mut mainCharacter: character, window: Window) {
+    let mut textureVec: Vec<Texture> = Vec::new();
     let mut lastPhaseChange = Instant::now();
-    let surfaceMain = Surface::load_png("/home/rfitz/Backup/RustroverProjects/GameTest/src/Assets/gameCharacter.png").unwrap();
-    let mut textureMain = renderer.create_texture_from_surface(&surfaceMain).unwrap();
-    textureMain.set_scale_mode(sdl3::render::ScaleMode::Nearest);
-
-    let surfaceSword = Surface::load_png("/home/rfitz/Backup/RustroverProjects/GameTest/src/Assets/mainSword.png").unwrap();
-    let mut textureSword = renderer.create_texture_from_surface(&surfaceSword).unwrap();
-    textureSword.set_scale_mode(sdl3::render::ScaleMode::Nearest);
-
-    let surfaceCrest = Surface::load_png("/home/rfitz/Backup/RustroverProjects/GameTest/src/Assets/crest.png").unwrap();
-    let textureCrest = renderer.create_texture_from_surface(&surfaceCrest).unwrap();
 
     let surfaceBackground = Surface::load_png("/home/rfitz/Backup/RustroverProjects/GameTest/src/Assets/grass.png").unwrap();
     let mut textureBackground = renderer.create_texture_from_surface(&surfaceBackground).unwrap();
     textureBackground.set_scale_mode(sdl3::render::ScaleMode::Nearest);
+    textureVec.push(textureBackground);
+
+    let surfaceMain = Surface::load_png("/home/rfitz/Backup/RustroverProjects/GameTest/src/Assets/gameCharacter.png").unwrap();
+    let mut textureMain = renderer.create_texture_from_surface(&surfaceMain).unwrap();
+    textureMain.set_scale_mode(sdl3::render::ScaleMode::Nearest);
+    textureVec.push(textureMain);
+
+    let surfaceSword = Surface::load_png("/home/rfitz/Backup/RustroverProjects/GameTest/src/Assets/mainSword.png").unwrap();
+    let mut textureSword = renderer.create_texture_from_surface(&surfaceSword).unwrap();
+    textureSword.set_scale_mode(sdl3::render::ScaleMode::Nearest);
+    textureVec.push(textureSword);
+
+    let surfaceCrest = Surface::load_png("/home/rfitz/Backup/RustroverProjects/GameTest/src/Assets/crest.png").unwrap();
+    let mut textureCrest = renderer.create_texture_from_surface(&surfaceCrest).unwrap();
+    textureCrest.set_scale_mode(sdl3::render::ScaleMode::Nearest);
+    textureVec.push(textureCrest);
 
     let mut meshBox = meshBox::new(0.0, 0.0, 0.0, 0.0);
     let mut running = true;
     while running {
         let now = Instant::now();
-        lastPhaseChange = input(&mut mainCharacter, lastPhaseChange, &mut running, &mut meshBox, &textureBackground, &window);
+        lastPhaseChange = input(&mut mainCharacter, lastPhaseChange, &mut running, &mut meshBox, &textureVec[0], &window);
         //update(&mainCharacter);
-        render(renderer, &mut mainCharacter, &textureMain, &textureBackground, &mut meshBox, &window, &textureCrest, &textureSword);
+        render(renderer, &mut mainCharacter, &mut meshBox, &window, &textureVec);
         let elapsed = now.elapsed().as_millis();
         let extraTime = 16 - elapsed;
         delay(extraTime as u32);
@@ -546,19 +580,19 @@ fn input(mainCharacter: &mut character, mut lastPhaseChange: Instant, running: &
 
 //}
 
-fn render(renderer: &mut WindowCanvas, mainCharacter: &mut character, textureMain: &Texture, textureBackground: &Texture, meshBox: &mut meshBox, window: &Window, textureCrest: &Texture, swordTexture: &Texture) {
+fn render(renderer: &mut WindowCanvas, mainCharacter: &mut character, meshBox: &mut meshBox, window: &Window, textureVec: &Vec<Texture>) {
     renderer.set_draw_color(Color::RGB(50, 155, 50));
     renderer.clear();
 
     let backgroundRenderArea = FRect::new(0.0, 0.0, window.size_in_pixels().0 as f32, window.size_in_pixels().1 as f32);
-
-    meshBox.render(textureBackground, renderer, backgroundRenderArea);
-    mainCharacter.render(textureMain, renderer);
-    mainCharacter.stats.render(renderer);
-    mainCharacter.swordAttack.render(renderer, mainCharacter.x, mainCharacter.y, swordTexture);
-
     let crestRenderArea = FRect::new(0.0, 0.0, 104.0, 115.0);
-    renderer.copy(textureCrest, None, crestRenderArea).unwrap();
+
+    meshBox.render(&textureVec[0], renderer, backgroundRenderArea);
+    mainCharacter.render(&textureVec[1], renderer);
+    mainCharacter.stats.render(renderer);
+    mainCharacter.swordAttack.render(renderer, mainCharacter.x, mainCharacter.y, &textureVec[2]);
+
+    renderer.copy(&textureVec[3], None, crestRenderArea).unwrap();
 
     renderer.present();
 
