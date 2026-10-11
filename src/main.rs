@@ -737,7 +737,7 @@ fn update(mainCharacter: &mut character, wolfVev: &mut Vec<wolf>, backgroundText
                 my = -my;
             }
 
-            meshBox.updatePosition(mx, my, backgroundTexture);
+            wolf.updatePosition(mx, my, backgroundTexture);
         }
     }
 }
