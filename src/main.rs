@@ -24,7 +24,18 @@ struct character {
 }
 
 impl character {
-    fn new(x: f32, y: f32, direction: String, characterUp: [FRect; 3], characterDown: [FRect; 3], characterRight: [FRect; 3], characterLeft: [FRect; 3], health: f32) -> character {character{x, y, direction, walkingPhase: 0, characterUp, characterDown,characterRight, characterLeft, hitBox: FRect{x, y, w: 70.0, h: 112.0}, stats: stats::new(health), swordAttack: swordAttack::new("up".to_string())}}
+    fn new(x: f32, y: f32, direction: String, health: f32) -> character {character{
+        x,
+        y,
+        direction,
+        walkingPhase: 0,
+        characterUp: [FRect::new(2.0, 33.0, 9.0, 16.0), FRect::new(12.0, 33.0, 9.0, 16.0), FRect::new(22.0, 33.0, 9.0, 16.0)],
+        characterDown: [FRect::new(2.0, 49.0, 9.0, 16.0), FRect::new(12.0, 49.0, 9.0, 16.0), FRect::new(22.0, 49.0, 9.0, 16.0)] ,
+        characterRight: [FRect::new(1.0, 17.0, 10.0, 16.0), FRect::new(12.0, 17.0, 10.0, 16.0), FRect::new(23.0, 17.0, 10.0, 16.0)],
+        characterLeft: [FRect::new(1.0, 1.0, 10.0, 16.0), FRect::new(12.0, 1.0, 10.0, 16.0), FRect::new(23.0, 1.0, 10.0, 16.0)],
+        hitBox: FRect{x, y, w: 70.0, h: 112.0},
+        stats: stats::new(health),
+        swordAttack: swordAttack::new("up".to_string())}}
     fn walkPhaseChange(&mut self, lastPhaseChange: &Instant) -> bool {
         if lastPhaseChange.elapsed().as_millis() >= 200 {
             self.walkingPhase += 1;
@@ -47,6 +58,9 @@ impl character {
             "left" => self.characterLeft,
             _ => self.characterDown
         };
+
+        self.hitBox.w = rectSet[self.walkingPhase].w * 7.0;
+        self.hitBox.h = rectSet[self.walkingPhase].h * 7.0;
 
         renderer.copy(texture, rectSet[self.walkingPhase], self.hitBox).unwrap();
     }
@@ -79,14 +93,26 @@ struct wolf {
     wolfRight: [FRect; 3],
     wolfLeft: [FRect; 3],
     hitBox: FRect,
+    health: f32,
     playerFound: bool
 }
 
 impl wolf {
-    fn new(x: f32, y: f32, direction: String, wolfUp: [FRect; 3], wolfDown: [FRect; 3], wolfRight: [FRect; 3], wolfLeft: [FRect; 3]) -> wolf {wolf{x, y, direction,  walkingPhase: 0, wolfUp, wolfDown, wolfLeft, wolfRight, hitBox: FRect{x, y, w: 0.0, h: 0.0}, playerFound: true}}
-    fn render(&mut self, texture: &Texture, backgroundTexture: &Texture, renderer: &mut WindowCanvas, meshBox: meshBox) {
-        self.hitBox.x = self.x * 6.0 - meshBox.x;
-        self.hitBox.y = self.y * 6.0 - meshBox.y;
+    fn new(x: f32, y: f32, direction: String) -> wolf {wolf{
+        x,
+        y,
+        direction,
+        walkingPhase: 0,
+        wolfUp: [FRect::new(2.0, 29.0, 14.0, 27.0), FRect::new(17.0, 29.0, 14.0, 27.0), FRect::new(32.0, 29.0, 14.0, 27.0)],
+        wolfDown: [FRect::new(1.0, 1.0, 15.0, 27.0), FRect::new(18.0, 1.0, 15.0, 27.0), FRect::new(35.0, 1.0, 15.0, 27.0)],
+        wolfLeft: [FRect::new(1.0, 57.0, 33.0, 28.0), FRect::new(35.0, 57.0, 33.0, 28.0), FRect::new(69.0, 57.0, 33.0, 28.0)],
+        wolfRight: [FRect::new(1.0, 86.0, 33.0, 28.0), FRect::new(35.0, 86.0, 33.0, 28.0), FRect::new(70.0, 86.0, 33.0, 28.0)],
+        hitBox: FRect{x, y, w: 0.0, h: 0.0},
+        health: 4.0,
+        playerFound: true}}
+    fn render(&mut self, texture: &Texture,renderer: &mut WindowCanvas, meshBox: &mut meshBox) {
+        self.hitBox.x = (self.x - meshBox.x) * 6.0;
+        self.hitBox.y = (self.y - meshBox.y) * 6.0;
 
         let rectSet = match self.direction.as_str() {
             "up" => self.wolfUp,
@@ -96,18 +122,79 @@ impl wolf {
             _ => self.wolfDown
         };
 
+        self.hitBox.w = rectSet[self.walkingPhase].w * 6.0;
+        self.hitBox.h = rectSet[self.walkingPhase].h * 6.0;
+
+        self.hitBox.x -= self.hitBox.w / 2.0;
+        self.hitBox.y -= self.hitBox.h / 2.0;
+
         renderer.copy(texture, rectSet[self.walkingPhase], self.hitBox).unwrap();
     }
-    fn findPlayer (&mut self, mainCharacter: &character, window: &Window) {
+    fn findPlayer (&mut self, mainCharacter: &character, backgroundTexture: &Texture, meshBox: &meshBox, lastPhaseChange: &Instant) {
         //if !self.playerFound{
         //    if
         //}
-        if self.playerFound {
+        /*if lastPhaseChange.elapsed().as_millis() >= 200 {
+            self.walkingPhase += 1;
+            if self.walkingPhase > 2 {
+                self.walkingPhase = 1;
+            }
+        }*/
 
-          //  self.updatePosition();
+        if self.playerFound {
+            let speed = 0.7;
+            let mainPosX = mainCharacter.x + meshBox.x * 6.0;
+            let mainPosY = mainCharacter.y + meshBox.y * 6.0;
+
+            let dx = mainPosX - self.x * 6.0;
+            let dy = mainPosY - self.y * 6.0;
+
+            let mut vertical = false;
+
+            let mut dxRatio = dx / dy;
+            if dxRatio < 0.0{
+                dxRatio = -dxRatio;
+            }
+            dxRatio += 1.0;
+
+            let mut my = speed / dxRatio;
+            let mut mx = speed - my;
+            if my > speed {
+                mx = speed / dxRatio;
+                my = speed - my;
+            }
+            if mx < my {
+                vertical = true;
+            }
+
+            if dx < 0.0 {
+                mx = -mx;
+            }
+            if dy < 0.0 {
+                my = -my;
+            }
+            if vertical == true {
+                if my > 0.0 {
+                    self.direction = String::from("down");
+                }
+                else {
+                    self.direction = String::from("up");
+                }
+            }
+            else {
+                if mx > 0.0 {
+                    self.direction = String::from("right");
+                }
+                else {
+                    self.direction = String::from("left");
+                }
+            }
+            println!("{}", my);
+
+          self.updatePosition(mx, my, backgroundTexture);
         }
     }
-    fn updatePosition(&mut self, x: f32, y: f32, window: &Window, backgroundTexture: &Texture) {
+    fn updatePosition(&mut self, x: f32, y: f32, backgroundTexture: &Texture) {
         self.x += x;
         self.y += y;
 
@@ -117,10 +204,10 @@ impl wolf {
         if self.y < 0.0 {
             self.y = 0.0;
         }
-        if self.x + self.hitBox.w > backgroundTexture.width() as f32 {
+        if self.x + self.hitBox.w > backgroundTexture.width() as f32 * 6.0 {
             self.x = backgroundTexture.width() as f32 - self.hitBox.w;
         }
-        if self.y + self.hitBox.h > backgroundTexture.height() as f32 {
+        if self.y + self.hitBox.h > backgroundTexture.height() as f32 * 6.0 {
             self.y = backgroundTexture.height() as f32 - self.hitBox.h;
         }
     }
@@ -354,18 +441,18 @@ fn main() {
     renderer.clear();
     renderer.present();
 
-    let rectUp = [FRect::new(2.0, 33.0, 9.0, 16.0), FRect::new(12.0, 33.0, 9.0, 16.0), FRect::new(22.0, 33.0, 9.0, 16.0)];
-    let rectDown = [FRect::new(2.0, 49.0, 9.0, 16.0), FRect::new(12.0, 49.0, 9.0, 16.0), FRect::new(22.0, 49.0, 9.0, 16.0)];
-    let rectRight = [FRect::new(1.0, 17.0, 10.0, 16.0), FRect::new(12.0, 17.0, 10.0, 16.0), FRect::new(23.0, 17.0, 10.0, 16.0)];
-    let rectLeft = [FRect::new(1.0, 1.0, 10.0, 16.0), FRect::new(12.0, 1.0, 10.0, 16.0), FRect::new(23.0, 1.0, 10.0, 16.0)];
-    let mainCharacter = character::new(window.size_in_pixels().0 as f32 / 2.0, window.size_in_pixels().1 as f32 / 2.0, "down".parse::<String>().unwrap(), rectUp, rectDown, rectRight, rectLeft, 20.0);
-
-    gameLoop(&mut renderer, mainCharacter, window);
+    gameLoop(&mut renderer, window);
 }
 
-fn gameLoop(renderer: &mut WindowCanvas, mut mainCharacter: character, window: Window) {
+fn gameLoop(renderer: &mut WindowCanvas, window: Window) {
     let mut textureVec: Vec<Texture> = Vec::new();
     let mut lastPhaseChange = Instant::now();
+    let mut mainCharacter = character::new(window.size_in_pixels().0 as f32 / 2.0, window.size_in_pixels().1 as f32 / 2.0, "down".parse::<String>().unwrap(), 20.0);
+
+    let mut wolfVec: Vec<wolf> = Vec::new();
+    wolfVec.push(wolf::new(100.0, 100.0, "down".to_string()));
+    let mut wolfTimer = Instant::now();
+    let mut score = 1;
 
     let surfaceBackground = Surface::load_png("/home/rfitz/Backup/RustroverProjects/GameTest/src/Assets/grass.png").unwrap();
     let mut textureBackground = renderer.create_texture_from_surface(&surfaceBackground).unwrap();
@@ -387,14 +474,27 @@ fn gameLoop(renderer: &mut WindowCanvas, mut mainCharacter: character, window: W
     textureCrest.set_scale_mode(sdl3::render::ScaleMode::Nearest);
     textureVec.push(textureCrest);
 
+    let surfaceWolf = Surface::load_png("/home/rfitz/Backup/RustroverProjects/GameTest/src/Assets/wolf.png").unwrap();
+    let mut textureWolf = renderer.create_texture_from_surface(&surfaceWolf).unwrap();
+    textureWolf.set_scale_mode(sdl3::render::ScaleMode::Nearest);
+    textureVec.push(textureWolf);
+
     let mut meshBox = meshBox::new(0.0, 0.0, 0.0, 0.0);
     let mut running = true;
     while running {
+        if wolfTimer.elapsed().as_secs() > 5 {
+            wolfVec.push(wolf::new(100.0, 100.0, "down".to_string()));
+            wolfTimer = Instant::now();
+            score += 1;
+        }
         let now = Instant::now();
         lastPhaseChange = input(&mut mainCharacter, lastPhaseChange, &mut running, &mut meshBox, &textureVec[0], &window);
-        //update(&mainCharacter);
-        render(renderer, &mut mainCharacter, &mut meshBox, &window, &textureVec);
-        let elapsed = now.elapsed().as_millis();
+        update(&mainCharacter, &mut wolfVec, &textureVec[0], &meshBox, &lastPhaseChange);
+        render(renderer, &mut mainCharacter, &mut meshBox, &window, &textureVec, &mut wolfVec);
+        let mut elapsed = now.elapsed().as_millis();
+        if elapsed > 16 {
+            elapsed = 0;
+        }
         let extraTime = 16 - elapsed;
         delay(extraTime as u32);
     }
@@ -576,11 +676,73 @@ fn input(mainCharacter: &mut character, mut lastPhaseChange: Instant, running: &
     lastPhaseChange
 }
 
-//fn update(mainCharacter: &character) {
+fn update(mainCharacter: &mut character, wolfVev: &mut Vec<wolf>, backgroundTexture: &Texture, meshBox: &mut meshBox, lastPhaseChange: &Instant, window: &Window) {
+    for wolf in wolfVev.iter_mut() {
+        wolf.findPlayer(mainCharacter, backgroundTexture, meshBox, lastPhaseChange);
+        if hitboxDetector(wolf.hitBox, mainCharacter.hitBox) {
+            let speed = 1.0;
+            let wolfPosX = wolf.x + meshBox.x * 6.0;
+            let wolfPosY = wolf.y + meshBox.y * 6.0;
 
-//}
+            let dx = wolfPosX - mainCharacter.x * 6.0;
+            let dy = wolfPosY - mainCharacter.y * 6.0;
 
-fn render(renderer: &mut WindowCanvas, mainCharacter: &mut character, meshBox: &mut meshBox, window: &Window, textureVec: &Vec<Texture>) {
+            let mut dxRatio = dx / dy;
+            if dxRatio < 0.0{
+                dxRatio = -dxRatio;
+            }
+            dxRatio += 1.0;
+
+            let mut my = speed / dxRatio;
+            let mut mx = speed - my;
+            if my > speed {
+                mx = speed / dxRatio;
+                my = speed - my;
+            }
+
+            if dx < 0.0 {
+                mx = -mx;
+            }
+            if dy < 0.0 {
+                my = -my;
+            }
+            mainCharacter.stats.health -= 1.0;
+            meshBox.updatePosition(mx, my, backgroundTexture);
+        }
+        if hitboxDetector(mainCharacter.swordAttack.hitBox, wolf.hitBox) {
+            let speed = 1.0;
+            let mainPosX = mainCharacter.x + meshBox.x * 6.0;
+            let mainPosY = mainCharacter.y + meshBox.y * 6.0;
+
+            let dx = mainPosX - wolf.x * 6.0;
+            let dy = mainPosY - wolf.y * 6.0;
+
+            let mut dxRatio = dx / dy;
+            if dxRatio < 0.0{
+                dxRatio = -dxRatio;
+            }
+            dxRatio += 1.0;
+
+            let mut my = speed / dxRatio;
+            let mut mx = speed - my;
+            if my > speed {
+                mx = speed / dxRatio;
+                my = speed - my;
+            }
+
+            if dx < 0.0 {
+                mx = -mx;
+            }
+            if dy < 0.0 {
+                my = -my;
+            }
+
+            meshBox.updatePosition(mx, my, backgroundTexture);
+        }
+    }
+}
+
+fn render(renderer: &mut WindowCanvas, mainCharacter: &mut character, meshBox: &mut meshBox, window: &Window, textureVec: &Vec<Texture>, wolfVec: &mut Vec<wolf>) {
     renderer.set_draw_color(Color::RGB(50, 155, 50));
     renderer.clear();
 
@@ -589,8 +751,11 @@ fn render(renderer: &mut WindowCanvas, mainCharacter: &mut character, meshBox: &
 
     meshBox.render(&textureVec[0], renderer, backgroundRenderArea);
     mainCharacter.render(&textureVec[1], renderer);
-    mainCharacter.stats.render(renderer);
+    for wolf in wolfVec.iter_mut() {
+        wolf.render(&textureVec[4], renderer, meshBox);
+    }
     mainCharacter.swordAttack.render(renderer, mainCharacter.x, mainCharacter.y, &textureVec[2]);
+    mainCharacter.stats.render(renderer);
 
     renderer.copy(&textureVec[3], None, crestRenderArea).unwrap();
 
