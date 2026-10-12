@@ -22,6 +22,9 @@ struct character {
     stats: stats,
     swordAttack: swordAttack,
     lastPhaseChange: Instant,
+    immune: bool,
+    render: bool,
+    timeSinceHit: Instant,
 }
 
 impl character {
@@ -38,6 +41,9 @@ impl character {
         stats: stats::new(health),
         swordAttack: swordAttack::new("up".to_string()),
         lastPhaseChange: Instant::now(),
+        immune: false,
+        render: true,
+        timeSinceHit: Instant::now(),
     }}
     fn walkPhaseChange(&mut self) {
         if self.lastPhaseChange.elapsed().as_millis() >= 200 {
@@ -46,6 +52,16 @@ impl character {
                 self.walkingPhase = 1;
             }
             self.lastPhaseChange = Instant::now();
+        }
+    }
+    fn update (&mut self) {
+        if self.timeSinceHit.elapsed().as_millis() <= 250 {
+            self.render = !self.render;
+            self.immune = true;
+        }
+        else {
+            self.immune = false;
+            self.render = true;
         }
     }
     fn render(&mut self, texture: &Texture, renderer: &mut WindowCanvas) {
@@ -97,6 +113,8 @@ struct wolf {
     health: f32,
     playerFound: bool,
     lastPhaseChange: Instant,
+    render: bool,
+    timeSinceHit: Instant,
 }
 
 impl wolf {
@@ -113,6 +131,8 @@ impl wolf {
         health: 4.0,
         playerFound: true,
         lastPhaseChange: Instant::now(),
+        render: true,
+        timeSinceHit: Instant::now(),
     }}
     fn render(&mut self, texture: &Texture,renderer: &mut WindowCanvas, meshBox: &mut meshBox) {
         self.hitBox.x = (self.x - meshBox.x) * 6.0;
@@ -144,6 +164,12 @@ impl wolf {
                 self.walkingPhase = 1;
             }
             self.lastPhaseChange = Instant::now();
+        }
+        if self.timeSinceHit.elapsed().as_millis() <= 250 {
+            self.render = !self.render;
+        }
+        else {
+            self.render = true;
         }
 
         if self.playerFound {
@@ -307,7 +333,13 @@ impl swordAttack{
         direction,
         swingCooldown: Instant::now()}}
     fn render (&mut self, renderer: &mut WindowCanvas, characterX: f32, characterY: f32, texture: &Texture) {
-        if self.swingPhase == 6 { return; }
+        if self.swingPhase == 6 {
+            self.hitBox.w = 0.0;
+            self.hitBox.h = 0.0;
+            self.hitBox.x = 0.0;
+            self.hitBox.y = 0.0;
+            return;
+        }
         let renderX:f32 = match self.direction.as_str() {
             "up" => match self.swingPhase as f32 {
                 0.0 | 1.0 | 2.0 => characterX - 19.5 * 7.0 + 35.0,
@@ -486,22 +518,29 @@ fn gameLoop(renderer: &mut WindowCanvas, window: Window) {
 
     let mut meshBox = meshBox::new(0.0, 0.0, 0.0, 0.0);
     let mut running = true;
+    let mut alive = true;
     while running {
-        if wolfTimer.elapsed().as_secs() > 3 {
-            //wolfVec.push( wolf::new(rand::random_range(0.0 ..textureVec[0].width() as f32), rand::random_range(0.0..textureVec[0].height() as f32), "down".to_string()));
-            wolfTimer = Instant::now();
-            score += 1;
+        while alive && running {
+            if wolfTimer.elapsed().as_secs() > 3 {
+                wolfVec.push( wolf::new(rand::random_range(0.0 ..textureVec[0].width() as f32), rand::random_range(0.0..textureVec[0].height() as f32), "down".to_string()));
+                wolfTimer = Instant::now();
+                score += 1;
+            }
+            let now = Instant::now();
+            lastPhaseChange = input(&mut mainCharacter, lastPhaseChange, &mut running, &mut meshBox, &textureVec[0], &window);
+            update(&mut mainCharacter, &mut wolfVec, &textureVec[0], &mut meshBox, &lastPhaseChange, &window, &mut alive);
+            render(renderer, &mut mainCharacter, &mut meshBox, &window, &textureVec, &mut wolfVec);
+            let mut elapsed = now.elapsed().as_millis();
+            if elapsed > 16 {
+                elapsed = 0;
+            }
+            let extraTime = 16 - elapsed;
+            delay(extraTime as u32);
         }
-        let now = Instant::now();
+        renderer.clear();
+        renderer.set_draw_color(Color::RGB(0, 0, 0));
+        renderer.present();
         lastPhaseChange = input(&mut mainCharacter, lastPhaseChange, &mut running, &mut meshBox, &textureVec[0], &window);
-        update(&mut mainCharacter, &mut wolfVec, &textureVec[0], &mut meshBox, &lastPhaseChange, &window);
-        render(renderer, &mut mainCharacter, &mut meshBox, &window, &textureVec, &mut wolfVec);
-        let mut elapsed = now.elapsed().as_millis();
-        if elapsed > 16 {
-            elapsed = 0;
-        }
-        let extraTime = 16 - elapsed;
-        delay(extraTime as u32);
     }
 }
 
@@ -681,42 +720,19 @@ fn input(mainCharacter: &mut character, mut lastPhaseChange: Instant, running: &
     lastPhaseChange
 }
 
-fn update(mainCharacter: &mut character, wolfVec: &mut Vec<wolf>, backgroundTexture: &Texture, meshBox: &mut meshBox, lastPhaseChange: &Instant, window: &Window) {
+fn update(mainCharacter: &mut character, wolfVec: &mut Vec<wolf>, backgroundTexture: &Texture, meshBox: &mut meshBox, lastPhaseChange: &Instant, window: &Window, alive: &mut bool) {
+    mainCharacter.update();
     for wolf in wolfVec.iter_mut() {
         wolf.findPlayer(mainCharacter, backgroundTexture, meshBox, lastPhaseChange);
-        if hitboxDetector(wolf.hitBox, mainCharacter.hitBox) {
-            println!("yay");
-            let speed = 1.0;
-            let wolfPosX = wolf.x + meshBox.x * 6.0;
-            let wolfPosY = wolf.y + meshBox.y * 6.0;
-
-            let dx = wolfPosX - mainCharacter.x * 6.0;
-            let dy = wolfPosY - mainCharacter.y * 6.0;
-
-            let mut dxRatio = dx / dy;
-            if dxRatio < 0.0{
-                dxRatio = -dxRatio;
+        if hitboxDetector(wolf.hitBox, mainCharacter.hitBox) && !mainCharacter.immune {
+            mainCharacter.timeSinceHit = Instant::now();
+            mainCharacter.stats.health -= 2.0;
+            if mainCharacter.stats.health <= 0.0 {
+                *alive = false;
             }
-            dxRatio += 1.0;
-
-            let mut my = speed / dxRatio;
-            let mut mx = speed - my;
-            if my > speed {
-                mx = speed / dxRatio;
-                my = speed - my;
-            }
-
-            if dx < 0.0 {
-                mx = -mx;
-            }
-            if dy < 0.0 {
-                my = -my;
-            }
-            mainCharacter.stats.health -= 1.0;
-            meshBox.updatePosition(mx, my, backgroundTexture);
         }
         if hitboxDetector(wolf.hitBox, mainCharacter.swordAttack.hitBox) {
-            let speed = 1.0;
+            let speed = 2.0;
             let mainPosX = mainCharacter.x + meshBox.x * 6.0;
             let mainPosY = mainCharacter.y + meshBox.y * 6.0;
 
@@ -743,14 +759,20 @@ fn update(mainCharacter: &mut character, wolfVec: &mut Vec<wolf>, backgroundText
                 my = -my;
             }
 
-            wolf.health -= 1.0;
-            wolf.updatePosition(mx, my, backgroundTexture);
+            wolf.health -= 0.1;
+            wolf.updatePosition(-mx, -my, backgroundTexture);
+            wolf.timeSinceHit = Instant::now();
         }
     }
+    let mut removeWolf = Vec::new();
     for wolf in 0..wolfVec.len() {
         if wolfVec[wolf].health < 0.0 {
-            wolfVec.remove(wolf);
+            removeWolf.push(wolf);
         }
+    }
+    removeWolf.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    for wolf in removeWolf {
+        wolfVec.remove(wolf);
     }
 }
 
@@ -762,9 +784,13 @@ fn render(renderer: &mut WindowCanvas, mainCharacter: &mut character, meshBox: &
     let crestRenderArea = FRect::new(0.0, 0.0, 104.0, 115.0);
 
     meshBox.render(&textureVec[0], renderer, backgroundRenderArea);
-    mainCharacter.render(&textureVec[1], renderer);
+    if mainCharacter.render {
+        mainCharacter.render(&textureVec[1], renderer);
+    }
     for wolf in wolfVec.iter_mut() {
-        wolf.render(&textureVec[4], renderer, meshBox);
+        if wolf.render {
+            wolf.render(&textureVec[4], renderer, meshBox);
+        }
     }
     mainCharacter.swordAttack.render(renderer, mainCharacter.x, mainCharacter.y, &textureVec[2]);
     mainCharacter.stats.render(renderer);
