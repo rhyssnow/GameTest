@@ -1,6 +1,9 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 
+use std::fs::File;
+use std::io::{Read, Write};
+use std::path::Path;
 use sdl3::keyboard::{Scancode};
 use sdl3::pixels::{Color};
 use sdl3::render::{create_renderer, Texture, WindowCanvas, FRect};
@@ -154,7 +157,7 @@ impl wolf {
 
         renderer.copy(texture, rectSet[self.walkingPhase], self.hitBox).unwrap();
     }
-    fn findPlayer (&mut self, mainCharacter: &character, backgroundTexture: &Texture, meshBox: &meshBox, lastPhaseChange: &Instant) {
+    fn findPlayer (&mut self, mainCharacter: &character, backgroundTexture: &Texture, meshBox: &meshBox) {
         //if !self.playerFound{
         //    if
         //}
@@ -221,8 +224,7 @@ impl wolf {
                 }
             }
 
-            println!("{}", self.x);
-          self.updatePosition(mx, my, backgroundTexture);
+            self.updatePosition(mx, my, backgroundTexture);
         }
     }
     fn updatePosition(&mut self, x: f32, y: f32, backgroundTexture: &Texture) {
@@ -483,13 +485,12 @@ fn main() {
 
 fn gameLoop(renderer: &mut WindowCanvas, window: Window) {
     let mut textureVec: Vec<Texture> = Vec::new();
-    let mut lastPhaseChange = Instant::now();
     let mut mainCharacter = character::new(window.size_in_pixels().0 as f32 / 2.0, window.size_in_pixels().1 as f32 / 2.0, "down".parse::<String>().unwrap(), 20.0);
 
     let mut wolfVec: Vec<wolf> = Vec::new();
     wolfVec.push(wolf::new(100.0, 100.0, "down".to_string()));
     let mut wolfTimer = Instant::now();
-    let mut score = 1;
+    let mut score = 0;
 
     let surfaceBackground = Surface::load_png("/home/rfitz/Backup/RustroverProjects/GameTest/src/Assets/grass.png").unwrap();
     let mut textureBackground = renderer.create_texture_from_surface(&surfaceBackground).unwrap();
@@ -519,28 +520,75 @@ fn gameLoop(renderer: &mut WindowCanvas, window: Window) {
     let mut meshBox = meshBox::new(0.0, 0.0, 0.0, 0.0);
     let mut running = true;
     let mut alive = true;
-    while running {
-        while alive && running {
-            if wolfTimer.elapsed().as_secs() > 3 {
-                wolfVec.push( wolf::new(rand::random_range(0.0 ..textureVec[0].width() as f32), rand::random_range(0.0..textureVec[0].height() as f32), "down".to_string()));
-                wolfTimer = Instant::now();
-                score += 1;
-            }
-            let now = Instant::now();
-            lastPhaseChange = input(&mut mainCharacter, lastPhaseChange, &mut running, &mut meshBox, &textureVec[0], &window);
-            update(&mut mainCharacter, &mut wolfVec, &textureVec[0], &mut meshBox, &lastPhaseChange, &window, &mut alive);
-            render(renderer, &mut mainCharacter, &mut meshBox, &window, &textureVec, &mut wolfVec);
-            let mut elapsed = now.elapsed().as_millis();
-            if elapsed > 16 {
-                elapsed = 0;
-            }
-            let extraTime = 16 - elapsed;
-            delay(extraTime as u32);
+
+    while alive && running {
+        if wolfTimer.elapsed().as_secs() > 3 {
+            wolfVec.push( wolf::new(rand::random_range(0.0 ..textureVec[0].width() as f32), rand::random_range(0.0..textureVec[0].height() as f32), "down".to_string()));
+            wolfTimer = Instant::now();
         }
-        renderer.clear();
+        let now = Instant::now();
+        input(&mut mainCharacter, &mut running, &mut meshBox, &textureVec[0], &window);
+        update(&mut mainCharacter, &mut wolfVec, &textureVec[0], &mut meshBox, &mut alive, &mut score);
+        render(renderer, &mut mainCharacter, &mut meshBox, &window, &textureVec, &mut wolfVec);
+        let mut elapsed = now.elapsed().as_millis();
+        if elapsed > 16 {
+            elapsed = 0;
+        }
+        let extraTime = 16 - elapsed;
+        delay(extraTime as u32);
+    }
+    delay(250);
+
+    let path = Path::new("/home/rfitz/Backup/RustroverProjects/GameTest/src/Assets/DovesTypeText-Regular.ttf");
+    let ttfContext = sdl3::ttf::init().map_err(|e| e.to_string()).unwrap();
+    let font = ttfContext.load_font(path, 100.0).expect("SDL_TTF failed to load font.");
+
+    let gameOverSurface = font.render("You Died").blended(Color::RGB(150, 50, 50)).unwrap();
+    let gameOverTexture = renderer.create_texture_from_surface(&gameOverSurface).unwrap();
+
+    let scoreSurface = font.render(&*("Score: ".to_string() + &*score.to_string())).blended(Color::RGB(200, 200, 200)).unwrap();
+    let scoreTexture = renderer.create_texture_from_surface(&scoreSurface).unwrap();
+
+    let mut file = File::open("/home/rfitz/Backup/RustroverProjects/GameTest/src/Assets/highscore.txt").expect("Could not open 'highscore.txt'");
+    let mut buffer = String::new();
+    file.read_to_string(&mut buffer).unwrap();
+
+    let highScoreSurface = font.render(&*("High Score: ".to_string() + &buffer)).blended(Color::RGB(200, 200, 200)).unwrap();
+    let highScoreTexture = renderer.create_texture_from_surface(&highScoreSurface).unwrap();
+
+
+    while running {
         renderer.set_draw_color(Color::RGB(0, 0, 0));
+        renderer.clear();
+
+
+        let deathMsgRect = FRect::new(
+            window.size_in_pixels().0 as f32 / 4.0,
+            50.0,
+            window.size_in_pixels().0 as f32 / 2.0,
+            window.size_in_pixels().1 as f32 / 3.0,
+        );
+        let mut highScoreMsgRect = FRect::new(
+          deathMsgRect.x + deathMsgRect.w / 3.0,
+          deathMsgRect.y + deathMsgRect.h + 50.0,
+          deathMsgRect.w / 3.0,
+          deathMsgRect.h / 3.0,
+        );
+
+        renderer.copy(&gameOverTexture, None, deathMsgRect).unwrap();
+        renderer.copy(&scoreTexture, None, highScoreMsgRect).unwrap();
+        highScoreMsgRect.y += highScoreMsgRect.h + 50.0;
+        highScoreMsgRect.h /= 1.5;
+        renderer.copy(&highScoreTexture, None, highScoreMsgRect).unwrap();
+
+
+
         renderer.present();
-        lastPhaseChange = input(&mut mainCharacter, lastPhaseChange, &mut running, &mut meshBox, &textureVec[0], &window);
+        input(&mut mainCharacter, &mut running, &mut meshBox, &textureVec[0], &window);
+    }
+    if score > buffer.parse::<i32>().unwrap() {
+        let mut newFile = File::create("/home/rfitz/Backup/RustroverProjects/GameTest/src/Assets/highscore.txt").unwrap();
+        newFile.write_all(&score.to_string().as_bytes()).unwrap();
     }
 }
 
@@ -573,7 +621,7 @@ fn hitboxDetector(hitbox1: FRect, hitbox2: FRect) -> bool {
     touching
 }
 
-fn input(mainCharacter: &mut character, mut lastPhaseChange: Instant, running: &mut bool, meshBox: &mut meshBox, backgroundTexture: &Texture, window: &Window) -> Instant {
+fn input(mainCharacter: &mut character, running: &mut bool, meshBox: &mut meshBox, backgroundTexture: &Texture, window: &Window) {
     let mut eventPump = sdl3::init().unwrap().event_pump().unwrap();
     let keyboardState = eventPump.keyboard_state();
     let mut speed = 1.0;
@@ -717,13 +765,12 @@ fn input(mainCharacter: &mut character, mut lastPhaseChange: Instant, running: &
             _ => {}
         }
     }
-    lastPhaseChange
 }
 
-fn update(mainCharacter: &mut character, wolfVec: &mut Vec<wolf>, backgroundTexture: &Texture, meshBox: &mut meshBox, lastPhaseChange: &Instant, window: &Window, alive: &mut bool) {
+fn update(mainCharacter: &mut character, wolfVec: &mut Vec<wolf>, backgroundTexture: &Texture, meshBox: &mut meshBox, alive: &mut bool, score: &mut i32) {
     mainCharacter.update();
     for wolf in wolfVec.iter_mut() {
-        wolf.findPlayer(mainCharacter, backgroundTexture, meshBox, lastPhaseChange);
+        wolf.findPlayer(mainCharacter, backgroundTexture, meshBox);
         if hitboxDetector(wolf.hitBox, mainCharacter.hitBox) && !mainCharacter.immune {
             mainCharacter.timeSinceHit = Instant::now();
             mainCharacter.stats.health -= 2.0;
@@ -773,6 +820,7 @@ fn update(mainCharacter: &mut character, wolfVec: &mut Vec<wolf>, backgroundText
     removeWolf.sort_by(|a, b| a.partial_cmp(b).unwrap());
     for wolf in removeWolf {
         wolfVec.remove(wolf);
+        *score += 1;
     }
 }
 
