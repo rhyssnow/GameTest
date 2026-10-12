@@ -494,27 +494,27 @@ fn gameLoop(renderer: &mut WindowCanvas, window: Window) {
     let mut wolfTimer = Instant::now();
     let mut score = 0;
 
-    let surfaceBackground = Surface::load_png("src/Assets/grass.png").unwrap();
+    let surfaceBackground = Surface::load_png("src/Assets/grass.png").expect("Failed to load assets/grass.png. Make sure you are running the project from the 'GameTest' folder rather than the 'src' folder. If for whatever reason you cannot do that, feel free to remove '/src' from all lines containing. These lines are also marked with a comment saying 'here'"); //here
     let mut textureBackground = renderer.create_texture_from_surface(&surfaceBackground).unwrap();
     textureBackground.set_scale_mode(sdl3::render::ScaleMode::Nearest);
     textureVec.push(textureBackground);
 
-    let surfaceMain = Surface::load_png("src/Assets/gameCharacter.png").unwrap();
+    let surfaceMain = Surface::load_png("src/Assets/gameCharacter.png").unwrap(); //here
     let mut textureMain = renderer.create_texture_from_surface(&surfaceMain).unwrap();
     textureMain.set_scale_mode(sdl3::render::ScaleMode::Nearest);
     textureVec.push(textureMain);
 
-    let surfaceSword = Surface::load_png("src/Assets/mainSword.png").unwrap();
+    let surfaceSword = Surface::load_png("src/Assets/mainSword.png").unwrap(); //here
     let mut textureSword = renderer.create_texture_from_surface(&surfaceSword).unwrap();
     textureSword.set_scale_mode(sdl3::render::ScaleMode::Nearest);
     textureVec.push(textureSword);
 
-    let surfaceCrest = Surface::load_png("src/Assets/crest.png").unwrap();
+    let surfaceCrest = Surface::load_png("src/Assets/crest.png").unwrap(); //here
     let mut textureCrest = renderer.create_texture_from_surface(&surfaceCrest).unwrap();
     textureCrest.set_scale_mode(sdl3::render::ScaleMode::Nearest);
     textureVec.push(textureCrest);
 
-    let surfaceWolf = Surface::load_png("src/Assets/wolf.png").unwrap();
+    let surfaceWolf = Surface::load_png("src/Assets/wolf.png").unwrap(); //here
     let mut textureWolf = renderer.create_texture_from_surface(&surfaceWolf).unwrap();
     textureWolf.set_scale_mode(sdl3::render::ScaleMode::Nearest);
     textureVec.push(textureWolf);
@@ -541,7 +541,7 @@ fn gameLoop(renderer: &mut WindowCanvas, window: Window) {
     }
     delay(250);
 
-    let path = Path::new("src/Assets/DovesTypeText-Regular.ttf");
+    let path = Path::new("src/Assets/DovesTypeText-Regular.ttf"); //here
     let ttfContext = sdl3::ttf::init().map_err(|e| e.to_string()).unwrap();
     let font = ttfContext.load_font(path, 100.0).expect("SDL_TTF failed to load font.");
 
@@ -551,7 +551,7 @@ fn gameLoop(renderer: &mut WindowCanvas, window: Window) {
     let scoreSurface = font.render(&*("Score: ".to_string() + &*score.to_string())).blended(Color::RGB(200, 200, 200)).unwrap();
     let scoreTexture = renderer.create_texture_from_surface(&scoreSurface).unwrap();
 
-    let mut file = File::open("src/Assets/highscore.txt").expect("Could not open 'highscore.txt'");
+    let mut file = File::open("src/Assets/highscore.txt").unwrap(); //here
     let mut buffer = String::new();
     file.read_to_string(&mut buffer).unwrap();
 
@@ -589,7 +589,7 @@ fn gameLoop(renderer: &mut WindowCanvas, window: Window) {
         input(&mut mainCharacter, &mut running, &mut meshBox, &textureVec[0], &window);
     }
     if score > buffer.parse::<i32>().unwrap() {
-        let mut newFile = File::create("src/Assets/highscore.txt").unwrap();
+        let mut newFile = File::create("src/Assets/highscore.txt").unwrap(); //here
         newFile.write_all(&score.to_string().as_bytes()).unwrap();
     }
 }
