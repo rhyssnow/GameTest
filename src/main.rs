@@ -20,7 +20,8 @@ struct character {
     characterLeft: [FRect; 3],
     hitBox: FRect,
     stats: stats,
-    swordAttack: swordAttack
+    swordAttack: swordAttack,
+    lastPhaseChange: Instant,
 }
 
 impl character {
@@ -35,17 +36,17 @@ impl character {
         characterLeft: [FRect::new(1.0, 1.0, 10.0, 16.0), FRect::new(12.0, 1.0, 10.0, 16.0), FRect::new(23.0, 1.0, 10.0, 16.0)],
         hitBox: FRect{x, y, w: 70.0, h: 112.0},
         stats: stats::new(health),
-        swordAttack: swordAttack::new("up".to_string())}}
-    fn walkPhaseChange(&mut self, lastPhaseChange: &Instant) -> bool {
-        if lastPhaseChange.elapsed().as_millis() >= 200 {
+        swordAttack: swordAttack::new("up".to_string()),
+        lastPhaseChange: Instant::now(),
+    }}
+    fn walkPhaseChange(&mut self) {
+        if self.lastPhaseChange.elapsed().as_millis() >= 200 {
             self.walkingPhase += 1;
             if self.walkingPhase > 2 {
                 self.walkingPhase = 1;
             }
-            return true
+            self.lastPhaseChange = Instant::now();
         }
-
-        false
     }
     fn render(&mut self, texture: &Texture, renderer: &mut WindowCanvas) {
         self.hitBox.x = self.x;
@@ -94,7 +95,8 @@ struct wolf {
     wolfLeft: [FRect; 3],
     hitBox: FRect,
     health: f32,
-    playerFound: bool
+    playerFound: bool,
+    lastPhaseChange: Instant,
 }
 
 impl wolf {
@@ -109,7 +111,9 @@ impl wolf {
         wolfRight: [FRect::new(1.0, 86.0, 33.0, 28.0), FRect::new(35.0, 86.0, 33.0, 28.0), FRect::new(70.0, 86.0, 33.0, 28.0)],
         hitBox: FRect{x, y, w: 0.0, h: 0.0},
         health: 4.0,
-        playerFound: true}}
+        playerFound: true,
+        lastPhaseChange: Instant::now(),
+    }}
     fn render(&mut self, texture: &Texture,renderer: &mut WindowCanvas, meshBox: &mut meshBox) {
         self.hitBox.x = (self.x - meshBox.x) * 6.0;
         self.hitBox.y = (self.y - meshBox.y) * 6.0;
@@ -134,12 +138,13 @@ impl wolf {
         //if !self.playerFound{
         //    if
         //}
-        /*if lastPhaseChange.elapsed().as_millis() >= 200 {
+        if self.lastPhaseChange.elapsed().as_millis() >= 200 {
             self.walkingPhase += 1;
             if self.walkingPhase > 2 {
                 self.walkingPhase = 1;
             }
-        }*/
+            self.lastPhaseChange = Instant::now();
+        }
 
         if self.playerFound {
             let speed = 0.7;
@@ -189,8 +194,8 @@ impl wolf {
                     self.direction = String::from("left");
                 }
             }
-            println!("{}", my);
 
+            println!("{}", self.x);
           self.updatePosition(mx, my, backgroundTexture);
         }
     }
@@ -482,14 +487,14 @@ fn gameLoop(renderer: &mut WindowCanvas, window: Window) {
     let mut meshBox = meshBox::new(0.0, 0.0, 0.0, 0.0);
     let mut running = true;
     while running {
-        if wolfTimer.elapsed().as_secs() > 5 {
-            wolfVec.push(wolf::new(100.0, 100.0, "down".to_string()));
+        if wolfTimer.elapsed().as_secs() > 3 {
+            //wolfVec.push( wolf::new(rand::random_range(0.0 ..textureVec[0].width() as f32), rand::random_range(0.0..textureVec[0].height() as f32), "down".to_string()));
             wolfTimer = Instant::now();
             score += 1;
         }
         let now = Instant::now();
         lastPhaseChange = input(&mut mainCharacter, lastPhaseChange, &mut running, &mut meshBox, &textureVec[0], &window);
-        update(&mainCharacter, &mut wolfVec, &textureVec[0], &meshBox, &lastPhaseChange);
+        update(&mut mainCharacter, &mut wolfVec, &textureVec[0], &mut meshBox, &lastPhaseChange, &window);
         render(renderer, &mut mainCharacter, &mut meshBox, &window, &textureVec, &mut wolfVec);
         let mut elapsed = now.elapsed().as_millis();
         if elapsed > 16 {
@@ -501,6 +506,8 @@ fn gameLoop(renderer: &mut WindowCanvas, window: Window) {
 }
 
 fn hitboxDetector(hitbox1: FRect, hitbox2: FRect) -> bool {
+    let mut touching = true;
+
     let top1 = hitbox1.y;
     let bottom1 = hitbox1.y + hitbox1.h;
     let left1 = hitbox1.x;
@@ -511,20 +518,20 @@ fn hitboxDetector(hitbox1: FRect, hitbox2: FRect) -> bool {
     let left2 = hitbox2.x;
     let right2 = hitbox2.x + hitbox2.w;
 
-    if bottom1 > top2{
-        return false
+    if bottom1 < top2{
+        touching = false;
     }
-    if top1 < bottom2{
-        return false
+    if top1 > bottom2{
+        touching = false;
     }
     if left1 > right2{
-        return false
+        touching = false;
     }
     if right1 < left2{
-        return false
+        touching = false;
     }
 
-    true
+    touching
 }
 
 fn input(mainCharacter: &mut character, mut lastPhaseChange: Instant, running: &mut bool, meshBox: &mut meshBox, backgroundTexture: &Texture, window: &Window) -> Instant {
@@ -650,10 +657,8 @@ fn input(mainCharacter: &mut character, mut lastPhaseChange: Instant, running: &
     }
 
     if walking {
-        let phaseChanged = mainCharacter.walkPhaseChange(&lastPhaseChange);
-        if phaseChanged {
-            lastPhaseChange = Instant::now()
-        }
+        mainCharacter.walkPhaseChange();
+
         if !usedStamina &&mainCharacter.stats.stamina < mainCharacter.stats.maxStamina {
             mainCharacter.stats.stamina += 0.04;
         }
@@ -676,10 +681,11 @@ fn input(mainCharacter: &mut character, mut lastPhaseChange: Instant, running: &
     lastPhaseChange
 }
 
-fn update(mainCharacter: &mut character, wolfVev: &mut Vec<wolf>, backgroundTexture: &Texture, meshBox: &mut meshBox, lastPhaseChange: &Instant, window: &Window) {
-    for wolf in wolfVev.iter_mut() {
+fn update(mainCharacter: &mut character, wolfVec: &mut Vec<wolf>, backgroundTexture: &Texture, meshBox: &mut meshBox, lastPhaseChange: &Instant, window: &Window) {
+    for wolf in wolfVec.iter_mut() {
         wolf.findPlayer(mainCharacter, backgroundTexture, meshBox, lastPhaseChange);
         if hitboxDetector(wolf.hitBox, mainCharacter.hitBox) {
+            println!("yay");
             let speed = 1.0;
             let wolfPosX = wolf.x + meshBox.x * 6.0;
             let wolfPosY = wolf.y + meshBox.y * 6.0;
@@ -709,7 +715,7 @@ fn update(mainCharacter: &mut character, wolfVev: &mut Vec<wolf>, backgroundText
             mainCharacter.stats.health -= 1.0;
             meshBox.updatePosition(mx, my, backgroundTexture);
         }
-        if hitboxDetector(mainCharacter.swordAttack.hitBox, wolf.hitBox) {
+        if hitboxDetector(wolf.hitBox, mainCharacter.swordAttack.hitBox) {
             let speed = 1.0;
             let mainPosX = mainCharacter.x + meshBox.x * 6.0;
             let mainPosY = mainCharacter.y + meshBox.y * 6.0;
@@ -737,7 +743,13 @@ fn update(mainCharacter: &mut character, wolfVev: &mut Vec<wolf>, backgroundText
                 my = -my;
             }
 
+            wolf.health -= 1.0;
             wolf.updatePosition(mx, my, backgroundTexture);
+        }
+    }
+    for wolf in 0..wolfVec.len() {
+        if wolfVec[wolf].health < 0.0 {
+            wolfVec.remove(wolf);
         }
     }
 }
